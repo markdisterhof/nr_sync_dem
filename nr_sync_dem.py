@@ -8,9 +8,9 @@
 # Title: 5G NR Synchronization Procedure Demo
 # Author: Mark Disterhof
 # Copyright: Mark Disterhof
-# GNU Radio version: 3.9.3.0
+# GNU Radio version: 3.10.1.1
 
-from distutils.version import StrictVersion
+from packaging.version import Version as StrictVersion
 
 if __name__ == '__main__':
     import ctypes
@@ -24,21 +24,19 @@ if __name__ == '__main__':
 
 from PyQt5 import Qt
 from gnuradio import qtgui
-from gnuradio.filter import firdes
 import sip
 from gnuradio import analog
 from gnuradio import blocks
 from gnuradio import fft
 from gnuradio.fft import window
 from gnuradio import gr
+from gnuradio.filter import firdes
 import sys
 import signal
 from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
-from gnuradio.qtgui import Range, RangeWidget
-from PyQt5 import QtCore
-from numpy import loadtxt
+from numpy import loadtxt, sqrt
 import nr_sync
 import nrphypy
 
@@ -90,77 +88,34 @@ class nr_sync_dem(gr.top_block, Qt.QWidget):
         self.idxs = idxs = nrphypy.ssb.get_ssb_ids(nrphypy.ssb.get_ssb_candidate_idx(mu, f, shared_spectr, paired_spectr), mu, shared_spectr)
         self.N_ID2 = N_ID2 = 1
         self.N_ID1 = N_ID1 = 234
-        self.samp_rate = samp_rate = num_carr * 40
+        self.samp_rate = samp_rate = num_carr * 20
         self.pbch_data = pbch_data = loadtxt('resource/antbin.txt',dtype=int)
         self.nu = nu = (N_ID2 + 3* N_ID1)%4
-        self.noise = noise = 0.1
+        self.noise = noise = 60e3
         self.k_ssb = k_ssb = 10
         self.L__max = L__max = len(idxs)
 
         ##################################################
         # Blocks
         ##################################################
-        self._noise_range = Range(0, 1, 0.01, 0.1, 200)
-        self._noise_win = RangeWidget(self._noise_range, self.set_noise, 'noise', "counter_slider", float, QtCore.Qt.Horizontal)
-        self.top_grid_layout.addWidget(self._noise_win, 0, 1, 1, 1)
+        if "real" == "int":
+        	isFloat = False
+        	scaleFactor = 1
+        else:
+        	isFloat = True
+        	scaleFactor = 1
+
+        _noise_dial_control = qtgui.GrDialControl('Noise σ [1e-6]', self, 0,10e4,60e3,"default",self.set_noise,isFloat, scaleFactor, 100, True, "''")
+        self.noise = _noise_dial_control
+
+        self.top_grid_layout.addWidget(_noise_dial_control, 0, 2, 1, 1)
         for r in range(0, 1):
             self.top_grid_layout.setRowStretch(r, 1)
-        for c in range(1, 2):
+        for c in range(2, 3):
             self.top_grid_layout.setColumnStretch(c, 1)
-        self.qtgui_time_sink_x_0 = qtgui.time_sink_c(
-            num_carr, #size
-            samp_rate, #samp_rate
-            "", #name
-            1, #number of inputs
-            None # parent
-        )
-        self.qtgui_time_sink_x_0.set_update_time(0.000010)
-        self.qtgui_time_sink_x_0.set_y_axis(-5, 5)
-
-        self.qtgui_time_sink_x_0.set_y_label('Amplitude', "")
-
-        self.qtgui_time_sink_x_0.enable_tags(True)
-        self.qtgui_time_sink_x_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, qtgui.TRIG_SLOPE_POS, 0.0, 0, 0, "")
-        self.qtgui_time_sink_x_0.enable_autoscale(False)
-        self.qtgui_time_sink_x_0.enable_grid(False)
-        self.qtgui_time_sink_x_0.enable_axis_labels(True)
-        self.qtgui_time_sink_x_0.enable_control_panel(False)
-        self.qtgui_time_sink_x_0.enable_stem_plot(False)
-
-
-        labels = ['Signal 1', 'Signal 2', 'Signal 3', 'Signal 4', 'Signal 5',
-            'Signal 6', 'Signal 7', 'Signal 8', 'Signal 9', 'Signal 10']
-        widths = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-        colors = ['blue', 'red', 'green', 'black', 'cyan',
-            'magenta', 'yellow', 'dark red', 'dark green', 'dark blue']
-        alphas = [1.0, 1.0, 1.0, 1.0, 1.0,
-            1.0, 1.0, 1.0, 1.0, 1.0]
-        styles = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-        markers = [-1, -1, -1, -1, -1,
-            -1, -1, -1, -1, -1]
-
-
-        for i in range(2):
-            if len(labels[i]) == 0:
-                if (i % 2 == 0):
-                    self.qtgui_time_sink_x_0.set_line_label(i, "Re{{Data {0}}}".format(i/2))
-                else:
-                    self.qtgui_time_sink_x_0.set_line_label(i, "Im{{Data {0}}}".format(i/2))
-            else:
-                self.qtgui_time_sink_x_0.set_line_label(i, labels[i])
-            self.qtgui_time_sink_x_0.set_line_width(i, widths[i])
-            self.qtgui_time_sink_x_0.set_line_color(i, colors[i])
-            self.qtgui_time_sink_x_0.set_line_style(i, styles[i])
-            self.qtgui_time_sink_x_0.set_line_marker(i, markers[i])
-            self.qtgui_time_sink_x_0.set_line_alpha(i, alphas[i])
-
-        self._qtgui_time_sink_x_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0.qwidget(), Qt.QWidget)
-        self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
-        self.qtgui_time_raster_sink_x_1 = qtgui.time_raster_sink_f(
+        self.qtgui_time_raster_sink_x_1_0 = qtgui.time_raster_sink_f(
             samp_rate,
-            50,
+            40,
             201,
             [],
             [],
@@ -169,14 +124,14 @@ class nr_sync_dem(gr.top_block, Qt.QWidget):
             None
         )
 
-        self.qtgui_time_raster_sink_x_1.set_update_time(0.000001)
-        self.qtgui_time_raster_sink_x_1.set_intensity_range(0, 1)
-        self.qtgui_time_raster_sink_x_1.enable_grid(False)
-        self.qtgui_time_raster_sink_x_1.enable_axis_labels(True)
-        self.qtgui_time_raster_sink_x_1.set_x_label("")
-        self.qtgui_time_raster_sink_x_1.set_x_range(0.0, 0.0)
-        self.qtgui_time_raster_sink_x_1.set_y_label("")
-        self.qtgui_time_raster_sink_x_1.set_y_range(0.0, 0.0)
+        self.qtgui_time_raster_sink_x_1_0.set_update_time(0.000001)
+        self.qtgui_time_raster_sink_x_1_0.set_intensity_range(0, 1)
+        self.qtgui_time_raster_sink_x_1_0.enable_grid(True)
+        self.qtgui_time_raster_sink_x_1_0.enable_axis_labels(False)
+        self.qtgui_time_raster_sink_x_1_0.set_x_label(" ")
+        self.qtgui_time_raster_sink_x_1_0.set_x_range(0.0, 0.0)
+        self.qtgui_time_raster_sink_x_1_0.set_y_label(" ")
+        self.qtgui_time_raster_sink_x_1_0.set_y_range(0.0, 0.0)
 
         labels = ['', '', '', '', '',
             '', '', '', '', '']
@@ -187,17 +142,17 @@ class nr_sync_dem(gr.top_block, Qt.QWidget):
 
         for i in range(1):
             if len(labels[i]) == 0:
-                self.qtgui_time_raster_sink_x_1.set_line_label(i, "Data {0}".format(i))
+                self.qtgui_time_raster_sink_x_1_0.set_line_label(i, "Data {0}".format(i))
             else:
-                self.qtgui_time_raster_sink_x_1.set_line_label(i, labels[i])
-            self.qtgui_time_raster_sink_x_1.set_color_map(i, colors[i])
-            self.qtgui_time_raster_sink_x_1.set_line_alpha(i, alphas[i])
+                self.qtgui_time_raster_sink_x_1_0.set_line_label(i, labels[i])
+            self.qtgui_time_raster_sink_x_1_0.set_color_map(i, colors[i])
+            self.qtgui_time_raster_sink_x_1_0.set_line_alpha(i, alphas[i])
 
-        self._qtgui_time_raster_sink_x_1_win = sip.wrapinstance(self.qtgui_time_raster_sink_x_1.qwidget(), Qt.QWidget)
-        self.top_grid_layout.addWidget(self._qtgui_time_raster_sink_x_1_win, 2, 1, 2, 1)
-        for r in range(2, 4):
+        self._qtgui_time_raster_sink_x_1_0_win = sip.wrapinstance(self.qtgui_time_raster_sink_x_1_0.qwidget(), Qt.QWidget)
+        self.top_grid_layout.addWidget(self._qtgui_time_raster_sink_x_1_0_win, 1, 2, 3, 3)
+        for r in range(1, 4):
             self.top_grid_layout.setRowStretch(r, 1)
-        for c in range(1, 2):
+        for c in range(2, 5):
             self.top_grid_layout.setColumnStretch(c, 1)
         self.qtgui_time_raster_sink_x_0 = qtgui.time_raster_sink_f(
             samp_rate,
@@ -205,18 +160,18 @@ class nr_sync_dem(gr.top_block, Qt.QWidget):
             num_carr,
             [],
             [],
-            "Rx Resourcegrid",
+            "Tx Resourcegrid",
             1,
             None
         )
 
         self.qtgui_time_raster_sink_x_0.set_update_time(0.000001)
-        self.qtgui_time_raster_sink_x_0.set_intensity_range(-1, 1)
-        self.qtgui_time_raster_sink_x_0.enable_grid(False)
+        self.qtgui_time_raster_sink_x_0.set_intensity_range(-0, 1)
+        self.qtgui_time_raster_sink_x_0.enable_grid(True)
         self.qtgui_time_raster_sink_x_0.enable_axis_labels(True)
-        self.qtgui_time_raster_sink_x_0.set_x_label("")
+        self.qtgui_time_raster_sink_x_0.set_x_label("Sub-Carrier")
         self.qtgui_time_raster_sink_x_0.set_x_range(0.0, 0.0)
-        self.qtgui_time_raster_sink_x_0.set_y_label("")
+        self.qtgui_time_raster_sink_x_0.set_y_label("Symbols")
         self.qtgui_time_raster_sink_x_0.set_y_range(0.0, 0.0)
 
         labels = ['', '', '', '', '',
@@ -235,10 +190,84 @@ class nr_sync_dem(gr.top_block, Qt.QWidget):
             self.qtgui_time_raster_sink_x_0.set_line_alpha(i, alphas[i])
 
         self._qtgui_time_raster_sink_x_0_win = sip.wrapinstance(self.qtgui_time_raster_sink_x_0.qwidget(), Qt.QWidget)
-        self.top_grid_layout.addWidget(self._qtgui_time_raster_sink_x_0_win, 0, 0, 2, 1)
+        self.top_grid_layout.addWidget(self._qtgui_time_raster_sink_x_0_win, 0, 0, 2, 2)
         for r in range(0, 2):
             self.top_grid_layout.setRowStretch(r, 1)
-        for c in range(0, 1):
+        for c in range(0, 2):
+            self.top_grid_layout.setColumnStretch(c, 1)
+        self.qtgui_number_sink_0_0 = qtgui.number_sink(
+            gr.sizeof_float,
+            0,
+            qtgui.NUM_GRAPH_NONE,
+            1,
+            None # parent
+        )
+        self.qtgui_number_sink_0_0.set_update_time(0.10)
+        self.qtgui_number_sink_0_0.set_title("Noise RMS")
+
+        labels = ['', '', '', '', '',
+            '', '', '', '', '']
+        units = ['', '', '', '', '',
+            '', '', '', '', '']
+        colors = [("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"),
+            ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black")]
+        factor = [1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1]
+
+        for i in range(1):
+            self.qtgui_number_sink_0_0.set_min(i, 0)
+            self.qtgui_number_sink_0_0.set_max(i, 0.003)
+            self.qtgui_number_sink_0_0.set_color(i, colors[i][0], colors[i][1])
+            if len(labels[i]) == 0:
+                self.qtgui_number_sink_0_0.set_label(i, "Data {0}".format(i))
+            else:
+                self.qtgui_number_sink_0_0.set_label(i, labels[i])
+            self.qtgui_number_sink_0_0.set_unit(i, units[i])
+            self.qtgui_number_sink_0_0.set_factor(i, factor[i])
+
+        self.qtgui_number_sink_0_0.enable_autoscale(False)
+        self._qtgui_number_sink_0_0_win = sip.wrapinstance(self.qtgui_number_sink_0_0.qwidget(), Qt.QWidget)
+        self.top_grid_layout.addWidget(self._qtgui_number_sink_0_0_win, 0, 4, 1, 1)
+        for r in range(0, 1):
+            self.top_grid_layout.setRowStretch(r, 1)
+        for c in range(4, 5):
+            self.top_grid_layout.setColumnStretch(c, 1)
+        self.qtgui_number_sink_0 = qtgui.number_sink(
+            gr.sizeof_float,
+            0,
+            qtgui.NUM_GRAPH_NONE,
+            1,
+            None # parent
+        )
+        self.qtgui_number_sink_0.set_update_time(0.10)
+        self.qtgui_number_sink_0.set_title("Signal RMS")
+
+        labels = ['', '', '', '', '',
+            '', '', '', '', '']
+        units = ['', '', '', '', '',
+            '', '', '', '', '']
+        colors = [("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"),
+            ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black")]
+        factor = [1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1]
+
+        for i in range(1):
+            self.qtgui_number_sink_0.set_min(i, 0)
+            self.qtgui_number_sink_0.set_max(i, 0.003)
+            self.qtgui_number_sink_0.set_color(i, colors[i][0], colors[i][1])
+            if len(labels[i]) == 0:
+                self.qtgui_number_sink_0.set_label(i, "Data {0}".format(i))
+            else:
+                self.qtgui_number_sink_0.set_label(i, labels[i])
+            self.qtgui_number_sink_0.set_unit(i, units[i])
+            self.qtgui_number_sink_0.set_factor(i, factor[i])
+
+        self.qtgui_number_sink_0.enable_autoscale(False)
+        self._qtgui_number_sink_0_win = sip.wrapinstance(self.qtgui_number_sink_0.qwidget(), Qt.QWidget)
+        self.top_grid_layout.addWidget(self._qtgui_number_sink_0_win, 0, 3, 1, 1)
+        for r in range(0, 1):
+            self.top_grid_layout.setRowStretch(r, 1)
+        for c in range(3, 4):
             self.top_grid_layout.setColumnStretch(c, 1)
         self.qtgui_const_sink_x_0_0 = qtgui.const_sink_c(
             240*4, #size
@@ -280,63 +309,67 @@ class nr_sync_dem(gr.top_block, Qt.QWidget):
             self.qtgui_const_sink_x_0_0.set_line_alpha(i, alphas[i])
 
         self._qtgui_const_sink_x_0_0_win = sip.wrapinstance(self.qtgui_const_sink_x_0_0.qwidget(), Qt.QWidget)
-        self.top_grid_layout.addWidget(self._qtgui_const_sink_x_0_0_win, 2, 0, 2, 1)
+        self.top_grid_layout.addWidget(self._qtgui_const_sink_x_0_0_win, 2, 0, 2, 2)
         for r in range(2, 4):
             self.top_grid_layout.setRowStretch(r, 1)
-        for c in range(0, 1):
+        for c in range(0, 2):
             self.top_grid_layout.setColumnStretch(c, 1)
         self.nr_sync_unmap_ssb_cc_0 = nr_sync.unmap_ssb_cc(nu)
         self.nr_sync_sss_decode_ci_0 = nr_sync.sss_decode_ci()
         self.nr_sync_rgrid_c_0 = nr_sync.rgrid_c(num_carr, N_ID1, N_ID2, k_ssb, mu, f, pbch_data, shared_spectr, paired_spectr)
-        self.nr_sync_pss_sync_cc_0 = nr_sync.pss_sync_cc(num_carr, 0.4, L__max)
+        self.nr_sync_pss_sync_cc_0 = nr_sync.pss_sync_cc(num_carr, 100, L__max)
         self.nr_sync_pbch_descramble_ci_0 = nr_sync.pbch_descramble_ci(L__max)
         self.nr_sync_nidcell_ii_0 = nr_sync.nidcell_ii()
+        self.nr_sync_dmrs_decode_0 = nr_sync.dmrs_decode(L__max)
         self.fft_vxx_0 = fft.fft_vcc(num_carr, False, window.rectangular(num_carr), True, 1)
         self.blocks_vector_to_stream_1 = blocks.vector_to_stream(gr.sizeof_int*1, 864)
         self.blocks_vector_to_stream_0_0_0 = blocks.vector_to_stream(gr.sizeof_gr_complex*1, 240*4)
         self.blocks_vector_to_stream_0 = blocks.vector_to_stream(gr.sizeof_gr_complex*1, num_carr)
-        self.blocks_throttle_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
+        self.blocks_throttle_0 = blocks.throttle(gr.sizeof_gr_complex*1, 5000,True)
         self.blocks_stream_to_vector_0 = blocks.stream_to_vector(gr.sizeof_gr_complex*1, num_carr)
         self.blocks_stream_demux_0 = blocks.stream_demux(gr.sizeof_int*1, (len(pbch_data), 864*L__max-len(pbch_data)))
-        self.blocks_null_sink_1 = blocks.null_sink(gr.sizeof_gr_complex*144)
+        self.blocks_rms_xx_0_0 = blocks.rms_cf(0.000000001)
+        self.blocks_rms_xx_0 = blocks.rms_cf(0.000000001)
         self.blocks_null_sink_0 = blocks.null_sink(gr.sizeof_int*1)
-        self.blocks_multiply_const_xx_0 = blocks.multiply_const_cc(1/num_carr, num_carr)
-        self.blocks_int_to_float_0 = blocks.int_to_float(1, 1)
-        self.blocks_complex_to_real_0 = blocks.complex_to_real(1)
+        self.blocks_multiply_const_xx_0 = blocks.multiply_const_cc(1/num_carr , num_carr)
+        self.blocks_int_to_float_0_0 = blocks.int_to_float(1, 1)
+        self.blocks_complex_to_mag_0 = blocks.complex_to_mag(1)
         self.blocks_add_xx_0 = blocks.add_vcc(1)
-        self.analog_noise_source_x_0 = analog.noise_source_c(analog.GR_GAUSSIAN, noise, 0)
-
+        self.analog_fastnoise_source_x_0 = analog.fastnoise_source_c(analog.GR_GAUSSIAN, noise/1e6, 0, 8192)
 
 
         ##################################################
         # Connections
         ##################################################
-        self.connect((self.analog_noise_source_x_0, 0), (self.blocks_add_xx_0, 1))
-        self.connect((self.blocks_add_xx_0, 0), (self.blocks_complex_to_real_0, 0))
-        self.connect((self.blocks_add_xx_0, 0), (self.blocks_stream_to_vector_0, 0))
-        self.connect((self.blocks_complex_to_real_0, 0), (self.qtgui_time_raster_sink_x_0, 0))
-        self.connect((self.blocks_int_to_float_0, 0), (self.qtgui_time_raster_sink_x_1, 0))
+        self.connect((self.analog_fastnoise_source_x_0, 0), (self.blocks_add_xx_0, 1))
+        self.connect((self.analog_fastnoise_source_x_0, 0), (self.blocks_rms_xx_0, 0))
+        self.connect((self.blocks_add_xx_0, 0), (self.nr_sync_pss_sync_cc_0, 0))
+        self.connect((self.blocks_complex_to_mag_0, 0), (self.qtgui_time_raster_sink_x_0, 0))
+        self.connect((self.blocks_int_to_float_0_0, 0), (self.qtgui_time_raster_sink_x_1_0, 0))
         self.connect((self.blocks_multiply_const_xx_0, 0), (self.blocks_vector_to_stream_0, 0))
-        self.connect((self.blocks_stream_demux_0, 0), (self.blocks_int_to_float_0, 0))
+        self.connect((self.blocks_rms_xx_0, 0), (self.qtgui_number_sink_0_0, 0))
+        self.connect((self.blocks_rms_xx_0_0, 0), (self.qtgui_number_sink_0, 0))
+        self.connect((self.blocks_stream_demux_0, 0), (self.blocks_int_to_float_0_0, 0))
         self.connect((self.blocks_stream_demux_0, 1), (self.blocks_null_sink_0, 0))
         self.connect((self.blocks_stream_to_vector_0, 0), (self.fft_vxx_0, 0))
-        self.connect((self.blocks_throttle_0, 0), (self.blocks_add_xx_0, 0))
-        self.connect((self.blocks_vector_to_stream_0, 0), (self.nr_sync_pss_sync_cc_0, 0))
-        self.connect((self.blocks_vector_to_stream_0, 0), (self.qtgui_time_sink_x_0, 0))
+        self.connect((self.blocks_throttle_0, 0), (self.blocks_complex_to_mag_0, 0))
+        self.connect((self.blocks_throttle_0, 0), (self.blocks_stream_to_vector_0, 0))
+        self.connect((self.blocks_vector_to_stream_0, 0), (self.blocks_add_xx_0, 0))
+        self.connect((self.blocks_vector_to_stream_0, 0), (self.blocks_rms_xx_0_0, 0))
         self.connect((self.blocks_vector_to_stream_0_0_0, 0), (self.qtgui_const_sink_x_0_0, 0))
         self.connect((self.blocks_vector_to_stream_1, 0), (self.blocks_stream_demux_0, 0))
         self.connect((self.fft_vxx_0, 0), (self.blocks_multiply_const_xx_0, 0))
+        self.connect((self.nr_sync_dmrs_decode_0, 0), (self.nr_sync_pbch_descramble_ci_0, 2))
+        self.connect((self.nr_sync_nidcell_ii_0, 0), (self.nr_sync_dmrs_decode_0, 0))
         self.connect((self.nr_sync_nidcell_ii_0, 0), (self.nr_sync_pbch_descramble_ci_0, 0))
         self.connect((self.nr_sync_pbch_descramble_ci_0, 0), (self.blocks_vector_to_stream_1, 0))
         self.connect((self.nr_sync_pss_sync_cc_0, 1), (self.blocks_vector_to_stream_0_0_0, 0))
         self.connect((self.nr_sync_pss_sync_cc_0, 0), (self.nr_sync_nidcell_ii_0, 0))
         self.connect((self.nr_sync_pss_sync_cc_0, 0), (self.nr_sync_sss_decode_ci_0, 0))
         self.connect((self.nr_sync_pss_sync_cc_0, 1), (self.nr_sync_unmap_ssb_cc_0, 0))
-        self.connect((self.nr_sync_pss_sync_cc_0, 2), (self.nr_sync_unmap_ssb_cc_0, 1))
         self.connect((self.nr_sync_rgrid_c_0, 0), (self.blocks_throttle_0, 0))
         self.connect((self.nr_sync_sss_decode_ci_0, 0), (self.nr_sync_nidcell_ii_0, 1))
-        self.connect((self.nr_sync_unmap_ssb_cc_0, 3), (self.blocks_null_sink_1, 0))
-        self.connect((self.nr_sync_unmap_ssb_cc_0, 2), (self.nr_sync_pbch_descramble_ci_0, 2))
+        self.connect((self.nr_sync_unmap_ssb_cc_0, 2), (self.nr_sync_dmrs_decode_0, 1))
         self.connect((self.nr_sync_unmap_ssb_cc_0, 1), (self.nr_sync_pbch_descramble_ci_0, 1))
         self.connect((self.nr_sync_unmap_ssb_cc_0, 0), (self.nr_sync_sss_decode_ci_0, 1))
 
@@ -382,8 +415,8 @@ class nr_sync_dem(gr.top_block, Qt.QWidget):
 
     def set_num_carr(self, num_carr):
         self.num_carr = num_carr
-        self.set_samp_rate(self.num_carr * 40)
-        self.blocks_multiply_const_xx_0.set_k(1/self.num_carr)
+        self.set_samp_rate(self.num_carr * 20)
+        self.blocks_multiply_const_xx_0.set_k(1/self.num_carr )
         self.qtgui_time_raster_sink_x_0.set_num_cols(self.num_carr)
 
     def get_idxs(self):
@@ -412,8 +445,6 @@ class nr_sync_dem(gr.top_block, Qt.QWidget):
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
-        self.blocks_throttle_0.set_sample_rate(self.samp_rate)
-        self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
 
     def get_pbch_data(self):
         return self.pbch_data
@@ -432,7 +463,7 @@ class nr_sync_dem(gr.top_block, Qt.QWidget):
 
     def set_noise(self, noise):
         self.noise = noise
-        self.analog_noise_source_x_0.set_amplitude(self.noise)
+        self.analog_fastnoise_source_x_0.set_amplitude(self.noise/1e6)
 
     def get_k_ssb(self):
         return self.k_ssb
